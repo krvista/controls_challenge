@@ -3,3 +3,6 @@ data/
 report.html
 models/tinyphysics_*.onnx
 *.swp
+
+# intermediate tuning artifacts
+controllers/*_best.json
