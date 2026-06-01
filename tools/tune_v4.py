@@ -26,7 +26,7 @@ SPACE = [
     ("kd",        -0.2, 0.05, False),
     ("i_clip",     0.1, 3.0, False),
 ]
-CONTROLLER = "ff_pid4"
+CONTROLLER = os.environ.get("TUNE_CONTROLLER", "ff_pid4")
 
 
 def decode(x):
@@ -75,6 +75,7 @@ if __name__ == "__main__":
               f"elapsed={time.time()-t0:.0f}s params={json.dumps(best_p)}", flush=True)
 
     print(f"\n=== BEST === total_cost(tune n={len(tune_idxs)})={best_f:.4f}\n{json.dumps(best_p)}")
-    with open(ROOT / "controllers" / "ff_pid4_best.json", "w") as f:
+    outf = ROOT / "controllers" / f"{CONTROLLER}_spread_best.json"
+    with open(outf, "w") as f:
         json.dump(best_p, f, indent=2)
-    print("saved -> controllers/ff_pid4_best.json")
+    print(f"saved -> {outf}")
