@@ -10,14 +10,16 @@ from pathlib import Path
 #    window centered `ref_center` steps ahead with width `ref_sigma`. Because it
 #    uses future targets, it lowers jerk WITHOUT the lag a causal EMA introduces.
 #  - PID feedback on the true tracking error, integral reset at control start.
+# Defaults = best params from CMA-ES tuning on a representative spread set
+# (val-1000 total_cost = 54.30; lataccel 0.725, jerk 18.07).
 DEFAULTS = {
-    "ff_gain": 0.9,
-    "ref_center": 3.0,   # window center, steps ahead (phase lead)
-    "ref_sigma": 3.0,    # window width (smoothing strength)
-    "kp": 0.18,
-    "ki": 0.12,
-    "kd": -0.05,
-    "i_clip": 1.2,
+    "ff_gain": 0.7916510351789442,
+    "ref_center": 3.981853870138741,   # window center, steps ahead (phase lead)
+    "ref_sigma": 1.5758175214224928,   # window width (smoothing strength)
+    "kp": 0.07651180124198706,
+    "ki": 0.10516086467551312,
+    "kd": 0.049513137282490155,
+    "i_clip": 1.3973288915902329,
 }
 
 _DIR = Path(__file__).resolve().parent
