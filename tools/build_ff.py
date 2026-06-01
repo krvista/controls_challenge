@@ -60,19 +60,47 @@ def fit_speed_scheduled(v, roll, a, lat, steer):
     return np.array(centers), np.array(A), np.array(B), np.array(C)
 
 
+def fit_rich(v, roll, a, lat, steer):
+    """Per v-bin LS with separate roll coef + mild saturation term:
+        steer = a_v*lat + r_v*roll + q_v*lat*|lat| + b_v*a + c_v
+    Stored as coef matrix (n_bins x 5) with columns [lat, roll, lat|lat|, a, 1]."""
+    finite = np.isfinite(v) & np.isfinite(roll) & np.isfinite(a) & np.isfinite(lat) & np.isfinite(steer)
+    centers, coefs = [], []
+    for lo, hi in zip(V_BINS[:-1], V_BINS[1:]):
+        m = (v >= lo) & (v < hi) & finite
+        if m.sum() < 200:
+            continue
+        X = np.column_stack([lat[m], roll[m], lat[m] * np.abs(lat[m]), a[m], np.ones(m.sum())])
+        coef, *_ = np.linalg.lstsq(X, steer[m], rcond=None)
+        pred = X @ coef
+        r2 = 1 - np.sum((steer[m] - pred) ** 2) / np.sum((steer[m] - steer[m].mean()) ** 2)
+        centers.append((lo + min(hi, 45)) / 2)
+        coefs.append(coef)
+        print(f"  v[{lo:.0f},{hi:.0f}) n={m.sum():>7d}  lat={coef[0]:+.3f} roll={coef[1]:+.3f} "
+              f"sat={coef[2]:+.4f} a={coef[3]:+.4f} c={coef[4]:+.4f}  R2={r2:.3f}")
+    return np.array(centers), np.array(coefs)
+
+
 if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser()
     p.add_argument("--source", default="data", choices=["data", "sim"])
+    p.add_argument("--model", default="affine", choices=["affine", "rich"])
     p.add_argument("--n_segs", type=int, default=2000)
-    p.add_argument("--out", default=str(ROOT / "controllers" / "ff_model.npz"))
+    p.add_argument("--out", default="")
     args = p.parse_args()
 
-    if args.source == "data":
-        print(f"Loading {args.n_segs} real segments...")
-        v, roll, a, lat, steer = load_real(args.n_segs)
-        print(f"rows: {len(v)}")
+    print(f"Loading {args.n_segs} real segments...")
+    v, roll, a, lat, steer = load_real(args.n_segs)
+    print(f"rows: {len(v)}")
+    if args.model == "affine":
+        out = args.out or str(ROOT / "controllers" / "ff_model.npz")
         print("Fitting speed-scheduled affine inverse model:")
         centers, A, B, C = fit_speed_scheduled(v, roll, a, lat, steer)
-        np.savez(args.out, v_centers=centers, a_v=A, b_v=B, c_v=C)
-        print(f"Saved -> {args.out}")
+        np.savez(out, v_centers=centers, a_v=A, b_v=B, c_v=C)
+    else:
+        out = args.out or str(ROOT / "controllers" / "ff_model_v2.npz")
+        print("Fitting rich (separate roll + saturation) inverse model:")
+        centers, coefs = fit_rich(v, roll, a, lat, steer)
+        np.savez(out, v_centers=centers, coefs=coefs)
+    print(f"Saved -> {out}")
