@@ -73,22 +73,26 @@ class Controller(BaseController):
         return float((e / e.sum()) @ _BINS)
 
     def _rollout(self, plan, rolls, vs, as_, H):
-        """rolls/vs/as_ : per-horizon-step roll/v/a (length H, index k = step t+k)."""
-        aw = np.asarray(self.act_h[-CONTEXT:], np.float32).copy()
-        rw = np.asarray(self.roll_h[-CONTEXT:], np.float32).copy()
-        vw = np.asarray(self.v_h[-CONTEXT:], np.float32).copy()
-        aaw = np.asarray(self.a_h[-CONTEXT:], np.float32).copy()
-        lw = np.asarray(self.lat_h[-CONTEXT:], np.float32).copy()
+        """rolls/vs/as_ : per-horizon-step roll/v/a (index k = step t+k); rolls[0]=roll[t].
+        IMPORTANT: roll_h/v_h/a_h already include step t (current), but act_h/lat_h end
+        at t-1. So at k=0 we append the action but NOT roll/v/a; for k>=1 append future
+        roll/v/a. This matches the verified sim indexing (tools/check_model.py)."""
+        al = list(self.act_h); rl = list(self.roll_h)
+        vl = list(self.v_h); aal = list(self.a_h); ll = list(self.lat_h)
         out = np.empty(H)
         for k in range(H):
-            aw = np.roll(aw, -1); aw[-1] = plan[k]
-            rw = np.roll(rw, -1); rw[-1] = rolls[k]
-            vw = np.roll(vw, -1); vw[-1] = vs[k]
-            aaw = np.roll(aaw, -1); aaw[-1] = as_[k]
+            al.append(plan[k])
+            if k > 0:
+                rl.append(rolls[k]); vl.append(vs[k]); aal.append(as_[k])
+            aw = np.asarray(al[-CONTEXT:], np.float32)
+            rw = np.asarray(rl[-CONTEXT:], np.float32)
+            vw = np.asarray(vl[-CONTEXT:], np.float32)
+            aaw = np.asarray(aal[-CONTEXT:], np.float32)
+            lw = np.asarray(ll[-CONTEXT:], np.float32)
             pe = self._expected1(aw, rw, vw, aaw, lw)
-            prev = lw[-1]
+            prev = ll[-1]
             pe = float(np.clip(pe, prev - MAX_DELTA, prev + MAX_DELTA))
-            lw = np.roll(lw, -1); lw[-1] = pe
+            ll.append(pe)
             out[k] = pe
         return out
 
