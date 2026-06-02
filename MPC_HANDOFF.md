@@ -83,6 +83,32 @@ segments, use a machine with many cores (the harness uses 16 workers; increase
 `max_workers`), and/or reduce `H`/`n_gn`. Quality/runtime should be tuned on a few hundred
 representative segments (see `tools/evalutil.py` splits) before the full run.
 
+## Empirical status & the core tension (read this)
+
+Measured on validation segments (held-out 3000+):
+- `ff_pid3` (FF baseline): stable, total ≈ 56–59, jerk ≈ 24–25.
+- `mpc5` (coord-descent, `w_du`≈1.0): **stable** (no divergence) but **slow** (~10–12 min/seg);
+  on straight segments ≈ ff_pid3, with lower jerk.
+- `mpc6` (batched GN, `w_du`=0.5): faster-ish but **GN still diverges on a minority of
+  segments** (p95 blows up) — needs higher `w_du`/`lam` to fully stabilize, which then
+  caps its tracking advantage.
+
+**Fundamental tension:** the model is accurate only *on-manifold* (smooth, human-like
+actions — verified corr 0.9998 there). Large tracking-error reductions require *aggressive*
+actions, exactly where the model is least reliable and the optimizer is tempted to exploit
+it. The `w_du` regularization that prevents divergence also limits how aggressive the plan
+can be, so a naive MPC does **not** robustly beat the well-tuned FF without more work.
+
+Paths to actually win (for offline iteration):
+1. **Per-segment trust-region tuning of `w_du`/`lam`** — start high (stable) and relax only
+   while the realized (not predicted) cost keeps dropping.
+2. **Penalize deviation of predicted-from-realized** (re-predict the just-applied action and
+   add the mismatch as a model-trust penalty) to detect off-manifold exploitation online.
+3. **Prefer `mpc5`'s coordinate descent** (more robust than GN) and invest compute (longer
+   horizon, more sweeps) — this is the safer base to push below ff_pid3.
+4. Match the leaderboard leaders' "much compute": many cores + long runtime; consider
+   exporting the model to ONNX-GPU / batching across segments.
+
 ## Verification utilities
 - `tools/check_model.py <seg>` — predictor vs sim accuracy.
 - `tools/debug_mpc.py <seg> <controller> <step>` — inspect the optimized plan & predicted
