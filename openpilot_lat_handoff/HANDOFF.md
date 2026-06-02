@@ -1,5 +1,9 @@
 # openpilot angle-steering tuning — investigation & handoff
 
+> **Ready-to-apply:** `lat_smooth.patch` (verified: applies to `bold-keller`, valid Python,
+> +23 lines, default no-op) + step-by-step in **`APPLY_TO_I6N.md`**. Harness: `replay_lat.py`.
+
+
 Goal (requested): tune angle steering on `krvista/openpilot` (branch `i6n`, target car
 **2026 Ioniq 6 N**) using the controls-challenge findings, validated by replaying the
 `ccnc-drivelog` branch, and commit to `i6n`.
