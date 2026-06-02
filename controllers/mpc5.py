@@ -29,6 +29,8 @@ _GR = 0.6180339887498949
 DEFAULTS = {
     "H": 10,           # horizon
     "w_jerk": 2.0,     # jerk:tracking ratio (matches true cost)
+    "w_du": 1.0,       # action-rate regularizer: keeps actions smooth / ON-MANIFOLD so
+                       # the optimizer can't exploit the model with adversarial oscillation
     "sweeps": 2,       # coordinate-descent sweeps per step
     "n_gs": 7,         # golden-section iterations per action
 }
@@ -96,10 +98,12 @@ class Controller(BaseController):
             out[k] = pe
         return out
 
-    def _cost(self, lat, refs, wj):
+    def _cost(self, lat, plan, refs, wj, w_du):
         prev = self.lat_h[-1]
         dlat = lat - np.concatenate([[prev], lat[:-1]])
-        return float(np.sum((lat - refs) ** 2) + wj * np.sum(dlat ** 2))
+        a_prev = self.act_h[-1]
+        da = np.asarray(plan) - np.concatenate([[a_prev], np.asarray(plan)[:-1]])
+        return float(np.sum((lat - refs) ** 2) + wj * np.sum(dlat ** 2) + w_du * np.sum(da ** 2))
 
     def update(self, target_lataccel, current_lataccel, state, future_plan):
         p = self.p
@@ -116,7 +120,7 @@ class Controller(BaseController):
             self.act_h.append(u)
             return u
 
-        H = int(p["H"]); wj = p["w_jerk"]
+        H = int(p["H"]); wj = p["w_jerk"]; w_du = p["w_du"]
 
         def pad(seq, n, fb):
             seq = list(seq[:n])
@@ -133,7 +137,7 @@ class Controller(BaseController):
         plan = self.plan.copy()
 
         def cost_of(pl):
-            return self._cost(self._rollout(pl, rolls, vs, as_, H), refs, wj)
+            return self._cost(self._rollout(pl, rolls, vs, as_, H), pl, refs, wj, w_du)
 
         # coordinate descent with golden-section per action
         for _ in range(int(p["sweeps"])):
